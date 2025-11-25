@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EverLeagues RAG Search - Mock UI</title>
+    <link rel="stylesheet" href="rag-styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <i class="fas fa-gavel"></i>
+                    <span>EverLeagues Tax RAG System</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="search-section">
+                <h1 class="page-title">
+                    <i class="fas fa-search"></i> Tax Corpus Search
+                </h1>
+                <p class="page-subtitle">
+                    Search across federal and multi-state tax documents using hybrid search (lexical + vector similarity)
+                </p>
+
+                <!-- Search Bar -->
+                <div class="search-container">
+                    <div class="search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="searchQuery" placeholder="Enter your tax question or search query... (e.g., 'What are the requirements for sales tax nexus in New York?')" autofocus>
+                        <button id="searchBtn" class="search-btn">
+                            <i class="fas fa-search"></i> Search
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Filters -->
+                <div class="filters-container">
+                    <div class="filter-header">
+                        <i class="fas fa-filter"></i>
+                        <span>Refine Search</span>
+                    </div>
+                    <div class="filters-grid">
+                        <div class="filter-item">
+                            <label for="jurisdictionFilter">
+                                <i class="fas fa-flag"></i> Jurisdiction
+                            </label>
+                            <select id="jurisdictionFilter">
+                                <option value="">All Jurisdictions</option>
+                                <option value="federal">Federal</option>
+                                <option value="state">State</option>
+                            </select>
+                        </div>
+                        <div class="filter-item">
+                            <label for="stateFilter">
+                                <i class="fas fa-map-marker-alt"></i> State
+                            </label>
+                            <select id="stateFilter">
+                                <option value="">All States</option>
+                                <option value="NY">New York</option>
+                                <option value="CA">California</option>
+                                <option value="NJ">New Jersey</option>
+                                <option value="CT">Connecticut</option>
+                                <option value="MA">Massachusetts</option>
+                                <option value="PA">Pennsylvania</option>
+                            </select>
+                        </div>
+                        <div class="filter-item">
+                            <label for="docTypeFilter">
+                                <i class="fas fa-file-alt"></i> Document Type
+                            </label>
+                            <select id="docTypeFilter">
+                                <option value="">All Types</option>
+                                <!-- Options will be dynamically populated based on jurisdiction selection -->
+                            </select>
+                        </div>
+                        <div class="filter-item">
+                            <label for="taxTypeFilter">
+                                <i class="fas fa-receipt"></i> Tax Type
+                            </label>
+                            <select id="taxTypeFilter">
+                                <option value="">All Tax Types</option>
+                                <option value="sales_use">Sales & Use Tax</option>
+                                <option value="income">Income Tax</option>
+                                <option value="property">Property Tax</option>
+                                <option value="estate">Estate Tax</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button id="clearFilters" class="clear-filters-btn">
+                        <i class="fas fa-times"></i> Clear All Filters
+                    </button>
+                </div>
+
+                <!-- Search Results -->
+                <div id="searchResults" class="search-results">
+                    <div class="results-placeholder">
+                        <i class="fas fa-search"></i>
+                        <h3>Ready to Search</h3>
+                        <p>Enter a query above to search the tax corpus</p>
+                        <div class="example-queries">
+                            <p class="example-title">Try these example queries:</p>
+                            <div class="example-tags">
+                                <span class="example-tag" data-query="sales tax nexus requirements">sales tax nexus requirements</span>
+                                <span class="example-tag" data-query="Form 1040 instructions">Form 1040 instructions</span>
+                                <span class="example-tag" data-query="New York tax deductions">New York tax deductions</span>
+                                <span class="example-tag" data-query="California sales tax exemptions">California sales tax exemptions</span>
+                                <span class="example-tag" data-query="IRS publication 17">IRS publication 17</span>
+                                <span class="example-tag" data-query="business deductions">business deductions</span>
+                                <span class="example-tag" data-query="charitable contributions">charitable contributions</span>
+                                <span class="example-tag" data-query="capital gains tax">capital gains</span>
+                                <span class="example-tag" data-query="retirement contributions">retirement contributions</span>
+                                <span class="example-tag" data-query="estate tax">estate tax</span>
+                                <span class="example-tag" data-query="home office deduction">home office deduction</span>
+                                <span class="example-tag" data-query="self employment tax">self employment tax</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="rag-script.js"></script>
+</body>
+</html>
+
