@@ -40,7 +40,7 @@ export default function DashboardOverview() {
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-foreground mb-2">Dashboard</h1>
-        <p className="text-muted-foreground">Real-time overview of your tax document system</p>
+        <p className="text-muted-foreground">Real time overview of your tax document system</p>
       </div>
 
       {/* Integration Badge */}
