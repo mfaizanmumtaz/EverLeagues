@@ -138,8 +138,10 @@ export default function URLManagement() {
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false)
   const [stateDropdownOpen, setStateDropdownOpen] = useState(false)
   const [stateSearchQuery, setStateSearchQuery] = useState("")
+  const [statusDropdownOpen, setStatusDropdownOpen] = useState<string | null>(null)
   const categoryDropdownRef = useRef<HTMLDivElement>(null)
   const stateDropdownRef = useRef<HTMLDivElement>(null)
+  const statusDropdownRef = useRef<HTMLDivElement>(null)
 
   const filteredStates = US_STATES.filter((state) => state.toLowerCase().includes(stateSearchQuery.toLowerCase()))
 
@@ -151,6 +153,9 @@ export default function URLManagement() {
       if (stateDropdownRef.current && !stateDropdownRef.current.contains(event.target as Node)) {
         setStateDropdownOpen(false)
         setStateSearchQuery("")
+      }
+      if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target as Node)) {
+        setStatusDropdownOpen(null)
       }
     }
 
@@ -253,7 +258,7 @@ export default function URLManagement() {
           Add New URL
         </button>
       ) : (
-        <div className="p-6 rounded-lg bg-card border border-border max-w-2xl">
+        <div className="p-6 rounded-lg bg-card border border-border max-w-2xl overflow-visible">
           <h2 className="text-lg font-bold text-foreground mb-4">Add New URL</h2>
           <div className="space-y-4">
             <div>
@@ -335,7 +340,7 @@ export default function URLManagement() {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className={`grid grid-cols-2 gap-4 transition-all duration-300 ease-out ${stateDropdownOpen ? "pb-56" : ""}`}>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">Category</label>
                 <div ref={categoryDropdownRef} className="relative">
@@ -398,8 +403,8 @@ export default function URLManagement() {
                     />
                   </button>
                   {stateDropdownOpen && newCategory === "State" && (
-                    <div className="absolute z-[100] w-full mt-1 bg-card border border-accent/50 rounded-lg shadow-xl overflow-hidden">
-                      <div className="p-2 border-b border-border">
+                    <div className="absolute z-[100] w-full mt-1 bg-card border border-accent/50 rounded-xl shadow-2xl overflow-hidden animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-200">
+                      <div className="p-2.5 border-b border-border/50 bg-muted/30">
                         <div className="relative">
                           <Search
                             className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
@@ -409,30 +414,36 @@ export default function URLManagement() {
                             type="text"
                             value={stateSearchQuery}
                             onChange={(e) => setStateSearchQuery(e.target.value)}
-                            placeholder="Search..."
-                            className="w-full pl-8 pr-3 py-1.5 rounded-md bg-input border border-border text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent"
+                            placeholder="Search states..."
+                            className="w-full pl-8 pr-3 py-2 rounded-lg bg-input border border-border text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent/50 transition-all"
                             onClick={(e) => e.stopPropagation()}
                           />
                         </div>
                       </div>
-                      <div className="max-h-48 overflow-y-auto">
+                      <div className="max-h-52 overflow-y-auto custom-scrollbar">
                         {filteredStates.length === 0 ? (
-                          <div className="px-4 py-2.5 text-sm text-muted-foreground text-center">No states found</div>
+                          <div className="px-4 py-4 text-sm text-muted-foreground text-center">No states found</div>
                         ) : (
-                          filteredStates.map((state) => (
-                            <div
-                              key={state}
-                              onClick={() => {
-                                setNewState(state)
-                                setStateDropdownOpen(false)
-                                setStateSearchQuery("")
-                              }}
-                              className="px-4 py-2.5 hover:bg-accent/10 cursor-pointer transition-colors flex items-center justify-between text-sm"
-                            >
-                              <span className="text-foreground">{state}</span>
-                              {newState === state && <Check size={16} className="text-accent" />}
-                            </div>
-                          ))
+                          <div className="py-1">
+                            {filteredStates.map((state) => (
+                              <div
+                                key={state}
+                                onClick={() => {
+                                  setNewState(state)
+                                  setStateDropdownOpen(false)
+                                  setStateSearchQuery("")
+                                }}
+                                className="mx-1 px-3 py-2.5 hover:bg-accent/10 cursor-pointer transition-all duration-150 flex items-center justify-between text-sm rounded-lg group"
+                              >
+                                <span className="text-foreground group-hover:text-accent transition-colors">{state}</span>
+                                {newState === state && (
+                                  <div className="flex items-center justify-center w-5 h-5 rounded-full bg-accent/20">
+                                    <Check size={12} className="text-accent" />
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
                         )}
                       </div>
                     </div>
@@ -539,27 +550,67 @@ export default function URLManagement() {
                   </td>
                   <td className="px-6 py-4 text-sm text-foreground">{url.state || "-"}</td>
                   <td className="px-6 py-4">
-                    <select
-                      value={url.active ? "active" : "inactive"}
-                      onChange={(e) => updateURLStatus(url.id, e.target.value === "active")}
-                      className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer border focus:outline-none focus:ring-2 focus:ring-accent appearance-none ${
-                        url.active
-                          ? "bg-accent/20 text-accent border-accent/30"
-                          : "bg-red-500/20 text-red-400 border-red-500/30"
-                      }`}
-                      style={{
-                        backgroundImage: url.active
-                          ? "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%2384cc16' d='M5 7L2 4h6z'/%3E%3C/svg%3E\")"
-                          : "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%23f87171' d='M5 7L2 4h6z'/%3E%3C/svg%3E\")",
-                        backgroundRepeat: "no-repeat",
-                        backgroundPosition: "right 0.5rem center",
-                        backgroundSize: "10px",
-                        paddingRight: "1.75rem",
-                      }}
+                    <div 
+                      ref={statusDropdownOpen === url.id ? statusDropdownRef : null}
+                      className="relative inline-block"
                     >
-                      <option value="active">Active</option>
-                      <option value="inactive">Inactive</option>
-                    </select>
+                      <button
+                        onClick={() => setStatusDropdownOpen(statusDropdownOpen === url.id ? null : url.id)}
+                        className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-[13px] font-medium transition-all duration-200 cursor-pointer ${
+                          url.active
+                            ? "bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20"
+                            : "bg-zinc-500/10 text-zinc-400 hover:bg-zinc-500/20"
+                        }`}
+                      >
+                        <span 
+                          className={`w-2 h-2 rounded-full ${
+                            url.active ? "bg-emerald-500" : "bg-zinc-500"
+                          }`} 
+                        />
+                        <span className="tracking-wide">{url.active ? "Active" : "Inactive"}</span>
+                        <ChevronDown 
+                          size={14} 
+                          className={`opacity-60 transition-transform duration-200 ${statusDropdownOpen === url.id ? "rotate-180" : ""}`}
+                        />
+                      </button>
+                      
+                      {statusDropdownOpen === url.id && (
+                        <div className="absolute z-50 top-full left-0 mt-1.5 min-w-[140px] bg-card border border-border/80 rounded-lg shadow-xl overflow-hidden animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-150">
+                          <div className="py-1">
+                            <button
+                              onClick={() => {
+                                updateURLStatus(url.id, true)
+                                setStatusDropdownOpen(null)
+                              }}
+                              className={`w-full flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium transition-colors ${
+                                url.active 
+                                  ? "bg-emerald-500/10 text-emerald-500" 
+                                  : "text-foreground/80 hover:bg-muted/60"
+                              }`}
+                            >
+                              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                              <span>Active</span>
+                              {url.active && <Check size={14} className="ml-auto" />}
+                            </button>
+                            <button
+                              onClick={() => {
+                                updateURLStatus(url.id, false)
+                                setStatusDropdownOpen(null)
+                              }}
+                              className={`w-full flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium transition-colors ${
+                                !url.active 
+                                  ? "bg-zinc-500/10 text-zinc-400" 
+                                  : "text-foreground/80 hover:bg-muted/60"
+                              }`}
+                            >
+                              <span className="w-2 h-2 rounded-full bg-zinc-500" />
+                              <span>Inactive</span>
+                              {!url.active && <Check size={14} className="ml-auto" />}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4 text-sm text-muted-foreground">{url.lastUpdated}</td>
                   <td className="px-6 py-4 text-sm flex gap-2">
@@ -620,54 +671,63 @@ export default function URLManagement() {
       )}
 
       {viewingURL && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-card border border-border rounded-lg max-w-2xl w-full p-6">
-            <h2 className="text-xl font-bold text-foreground mb-4">URL Details</h2>
-            <div className="space-y-4">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-card border border-border rounded-xl max-w-md w-full p-5 shadow-2xl animate-in fade-in-0 zoom-in-95 duration-200">
+            <h2 className="text-lg font-semibold text-foreground mb-4">URL Details</h2>
+            <div className="space-y-3">
               <div>
-                <label className="text-sm font-medium text-muted-foreground">URL</label>
-                <p className="text-foreground mt-1 break-all">{viewingURL.url}</p>
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">URL</label>
+                <p className="text-foreground text-sm mt-1 break-all">{viewingURL.url}</p>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">Category</label>
-                  <p className="text-foreground mt-1">{viewingURL.category}</p>
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Category</label>
+                  <p className="text-foreground text-sm mt-1">{viewingURL.category}</p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">State</label>
-                  <p className="text-foreground mt-1">{viewingURL.state || "N/A"}</p>
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">State</label>
+                  <p className="text-foreground text-sm mt-1">{viewingURL.state || "N/A"}</p>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">Data Source</label>
-                  <p className="text-foreground mt-1 capitalize">{viewingURL.dataSource}</p>
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Data Source</label>
+                  <p className="text-foreground text-sm mt-1 capitalize">{viewingURL.dataSource}</p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">Status</label>
-                  <p className="text-foreground mt-1">{viewingURL.active ? "Active" : "Inactive"}</p>
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Status</label>
+                  <div className="mt-1">
+                    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium ${
+                      viewingURL.active 
+                        ? "bg-emerald-500/10 text-emerald-500" 
+                        : "bg-zinc-500/10 text-zinc-400"
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${viewingURL.active ? "bg-emerald-500" : "bg-zinc-500"}`} />
+                      {viewingURL.active ? "Active" : "Inactive"}
+                    </span>
+                  </div>
                 </div>
               </div>
               {viewingURL.dataSource === "api" && (
-                <div className="space-y-3">
+                <div className="space-y-3 pt-1">
                   <div>
-                    <label className="text-sm font-medium text-muted-foreground">API Endpoint</label>
-                    <p className="text-foreground mt-1 break-all">{viewingURL.apiEndpoint}</p>
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">API Endpoint</label>
+                    <p className="text-foreground text-sm mt-1 break-all">{viewingURL.apiEndpoint}</p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-muted-foreground">API Key</label>
-                    <p className="text-foreground mt-1">{"*".repeat(20)}</p>
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">API Key</label>
+                    <p className="text-foreground text-sm mt-1 font-mono">{"*".repeat(16)}</p>
                   </div>
                 </div>
               )}
               <div>
-                <label className="text-sm font-medium text-muted-foreground">Last Updated</label>
-                <p className="text-foreground mt-1">{viewingURL.lastUpdated}</p>
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Last Updated</label>
+                <p className="text-foreground text-sm mt-1">{viewingURL.lastUpdated}</p>
               </div>
             </div>
             <button
               onClick={() => setViewingURL(null)}
-              className="mt-6 w-full px-4 py-2 rounded-lg bg-accent text-accent-foreground font-semibold hover:bg-accent/90 transition-colors"
+              className="mt-5 w-full px-4 py-2.5 rounded-lg bg-accent text-accent-foreground text-sm font-medium hover:bg-accent/90 transition-colors"
             >
               Close
             </button>
