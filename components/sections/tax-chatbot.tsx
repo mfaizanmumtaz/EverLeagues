@@ -1,7 +1,21 @@
 "use client"
 
 import { useState } from "react"
-import { Send, Settings, FileText } from "lucide-react"
+import { Send, Settings, FileText, Database, ChevronDown, ChevronUp, ExternalLink, BookOpen, BarChart3, Globe, Calendar, Layers, Hash, ArrowRight } from "lucide-react"
+
+interface RetrievedChunk {
+  id: string
+  chunkId: string
+  documentName: string
+  content: string
+  relevanceScore: number
+  authorityLevel?: 1 | 2 | 3 | 4 | 5 | 6
+  taxYear?: number
+  sourceUrl?: string
+  paragraphNumber?: number
+  fileVersion?: string
+  sourceDomain?: string
+}
 
 interface SourceDocument {
   id: string
@@ -10,6 +24,9 @@ interface SourceDocument {
   jurisdiction: string
   url?: string
   excerpt?: string
+  authorityLevel?: 1 | 2 | 3 | 4 | 5 | 6
+  taxYear?: number
+  chunks?: RetrievedChunk[]
 }
 
 interface Message {
@@ -18,6 +35,7 @@ interface Message {
   content: string
   timestamp: Date
   sources?: SourceDocument[]
+  retrievedChunks?: RetrievedChunk[]
 }
 
 const STATES = ["NY", "CA", "NJ", "CT", "MA", "PA"]
@@ -124,6 +142,24 @@ export default function TaxChatbot() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [expandedSourceId, setExpandedSourceId] = useState<string | null>(null)
+  const [showRetrievalResults, setShowRetrievalResults] = useState<Record<string, boolean>>({})
+  const [retrievalResults, setRetrievalResults] = useState<Record<string, RetrievedChunk[]>>({})
+  const [showLineage, setShowLineage] = useState<Record<string, boolean>>({})
+
+  // Helper function to extract domain from URL
+  const getDomainFromUrl = (url: string): string => {
+    try {
+      const urlObj = new URL(url)
+      let domain = urlObj.hostname.replace("www.", "")
+      // Format common domains
+      if (domain === "irs.gov") return "IRS.gov"
+      if (domain.includes("cornell.edu")) return "law.cornell.edu"
+      if (domain === "govinfo.gov") return "govinfo.gov"
+      return domain
+    } catch {
+      return url
+    }
+  }
 
   const generateRandomSources = (): SourceDocument[] => {
     const randomCount = Math.floor(Math.random() * 2) + 3 // Random between 3-4
@@ -186,6 +222,82 @@ export default function TaxChatbot() {
     setMessages((prev) => [...prev, assistantMessage])
   }
 
+  const generateRetrievedChunks = (): RetrievedChunk[] => {
+    // Mock retrieved chunks that would come from RAG retrieval
+    // These chunks are shown BEFORE the answer is generated
+    const chunks: RetrievedChunk[] = [
+      {
+        id: "chunk-1",
+        chunkId: "chunk_45",
+        documentName: "Form_1040_2024.pdf",
+        content: "The standard deduction for tax year 2024 is $14,600 for single filers and $29,200 for married couples filing jointly. This amount is adjusted annually for inflation.",
+        relevanceScore: 0.95,
+        authorityLevel: 2,
+        taxYear: 2024,
+        sourceUrl: "https://www.irs.gov/forms-pubs/about-form-1040",
+        paragraphNumber: 17,
+        fileVersion: "2024.1",
+      },
+      {
+        id: "chunk-2",
+        chunkId: "chunk_128",
+        documentName: "Pub 535 Business Expenses",
+        content: "Business expenses are the costs of carrying on a trade or business. These expenses are usually deductible if the business operates to make a profit. Common business expenses include rent, utilities, salaries, and office supplies.",
+        relevanceScore: 0.88,
+        authorityLevel: 4,
+        taxYear: 2024,
+        sourceUrl: "https://www.irs.gov/publications/p535",
+        paragraphNumber: 23,
+        fileVersion: "2024.2",
+      },
+      {
+        id: "chunk-3",
+        chunkId: "chunk_67",
+        documentName: "Rev Proc 2024-15",
+        content: "Revenue Procedure 2024-15 provides guidance on the treatment of certain business expenses and clarifies the deductibility of expenses related to remote work arrangements.",
+        relevanceScore: 0.82,
+        authorityLevel: 3,
+        taxYear: 2024,
+        sourceUrl: "https://www.irs.gov/pub/irs-drop/rp-24-15.pdf",
+        paragraphNumber: 12,
+        fileVersion: "2024.15",
+      },
+    ]
+
+    // Add sourceDomain to each chunk
+    return chunks.map((chunk) => ({
+      ...chunk,
+      sourceDomain: chunk.sourceUrl ? getDomainFromUrl(chunk.sourceUrl) : undefined,
+    }))
+  }
+
+  const generateDocumentsUsed = (chunks: RetrievedChunk[]): SourceDocument[] => {
+    // Extract unique documents from chunks
+    // This creates the "Documents Used" list that appears AFTER the answer
+    const documentMap = new Map<string, SourceDocument>()
+    
+    chunks.forEach((chunk) => {
+      if (!documentMap.has(chunk.documentName)) {
+        // Keep original document name format (Form_1040_2024.pdf, Pub 535 Business Expenses, Rev Proc 2024-15)
+        const displayTitle = chunk.documentName.includes("Pub") || chunk.documentName.includes("Rev Proc")
+          ? chunk.documentName
+          : chunk.documentName.replace(".pdf", "").replace(/_/g, " ")
+        
+        documentMap.set(chunk.documentName, {
+          id: `doc-${chunk.documentName}`,
+          title: displayTitle,
+          category: selectedCategory || "general",
+          jurisdiction: selectedJurisdiction === "federal" ? "federal" : "state",
+          url: chunk.sourceUrl,
+          authorityLevel: chunk.authorityLevel,
+          taxYear: chunk.taxYear,
+        })
+      }
+    })
+    
+    return Array.from(documentMap.values())
+  }
+
   const handleSendMessage = async () => {
     if (!inputValue.trim()) return
 
@@ -200,17 +312,33 @@ export default function TaxChatbot() {
     setInputValue("")
     setIsLoading(true)
 
+    // Simulate RAG retrieval - show chunks BEFORE generating answer
     setTimeout(() => {
-      const randomSources = generateRandomSources()
+      const retrievedChunks = generateRetrievedChunks()
+      const messageId = (Date.now() + 1).toString()
+      
+      // Store retrieval results for this message
+      setRetrievalResults((prev) => ({
+        ...prev,
+        [messageId]: retrievedChunks,
+      }))
+      setShowRetrievalResults((prev) => ({
+        ...prev,
+        [messageId]: true, // Show by default
+      }))
+
+      // Generate documents used list from chunks
+      const documentsUsed = generateDocumentsUsed(retrievedChunks)
 
       const assistantResponse: Message = {
-        id: (Date.now() + 1).toString(),
+        id: messageId,
         role: "assistant",
-        content: `I found relevant ${selectedCategory || "general"} documents from ${
-          selectedJurisdiction === "federal" ? "Federal" : `${selectedState} State`
-        } jurisdiction that match your query about "${inputValue}". Here are the most relevant documents...`,
+        content: `Based on the retrieved documents, I found relevant information about "${userMessage.content}". Here's what I found:
+
+The information comes from authoritative tax documents including Form 1040 instructions, IRS Publication 535 on Business Expenses, and Revenue Procedure 2024-15. These documents provide the most current guidance for tax year 2024.`,
         timestamp: new Date(),
-        sources: randomSources,
+        sources: documentsUsed,
+        retrievedChunks: retrievedChunks,
       }
       setMessages((prev) => [...prev, assistantResponse])
       setIsLoading(false)
@@ -218,6 +346,32 @@ export default function TaxChatbot() {
   }
 
   const isInputDisabled = !selectedCategory
+
+  // Mock Knowledge Base Statistics Data
+  const kbStatistics = {
+    totalDocumentsIndexed: 1247,
+    totalChunks: 384256,
+    authorityLevelBreakdown: {
+      level1: 142,
+      level2: 523,
+      level3: 198,
+      level4: 287,
+      level5: 67,
+      level6: 30,
+    },
+    sourcesDistribution: {
+      irsGov: 856,
+      stateSites: 234,
+      lawCornell: 89,
+      govInfo: 68,
+    },
+    freshnessStats: {
+      last24h: 12,
+      last7Days: 87,
+      last30Days: 234,
+      staleOver30Days: 27,
+    },
+  }
 
   return (
     <div className="space-y-6">
@@ -247,22 +401,251 @@ export default function TaxChatbot() {
                     </p>
                   </div>
 
+                  {/* RAG Retrieval Results Panel - Shows BEFORE answer */}
+                  {message.role === "assistant" && message.retrievedChunks && message.retrievedChunks.length > 0 && (
+                    <div className="mt-3 p-4 rounded-lg bg-blue-500/10 border border-blue-500/30">
+                      <button
+                        onClick={() =>
+                          setShowRetrievalResults((prev) => ({
+                            ...prev,
+                            [message.id]: !prev[message.id],
+                          }))
+                        }
+                        className="flex items-center justify-between w-full mb-2"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Database size={16} className="text-blue-600" />
+                          <p className="text-sm font-semibold text-foreground">
+                            RAG Retrieval Results ({message.retrievedChunks.length} chunks retrieved)
+                          </p>
+                        </div>
+                        {showRetrievalResults[message.id] ? (
+                          <ChevronUp size={16} className="text-muted-foreground" />
+                        ) : (
+                          <ChevronDown size={16} className="text-muted-foreground" />
+                        )}
+                      </button>
+                      {showRetrievalResults[message.id] && (
+                        <div className="space-y-3 mt-3">
+                          {message.retrievedChunks.map((chunk) => (
+                            <div
+                              key={chunk.id}
+                              className="p-3 rounded-lg bg-card border border-border"
+                            >
+                              <div className="flex items-start justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <FileText size={14} className="text-accent" />
+                                  <span className="text-xs font-semibold text-foreground">
+                                    {chunk.documentName}
+                                  </span>
+                                  {chunk.chunkId && (
+                                    <span className="text-xs text-muted-foreground">
+                                      (Chunk {chunk.chunkId})
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {chunk.authorityLevel && (
+                                    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-500/20 text-blue-600">
+                                      Level {chunk.authorityLevel}
+                                    </span>
+                                  )}
+                                  <span className="text-xs text-muted-foreground">
+                                    {(chunk.relevanceScore * 100).toFixed(0)}% match
+                                  </span>
+                                </div>
+                              </div>
+                              <p className="text-xs text-muted-foreground mb-2 line-clamp-2">
+                                {chunk.content}
+                              </p>
+                              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                {chunk.taxYear && (
+                                  <span>Tax Year: {chunk.taxYear}</span>
+                                )}
+                                {chunk.sourceUrl && (
+                                  <a
+                                    href={chunk.sourceUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-1 text-accent hover:underline"
+                                  >
+                                    <ExternalLink size={12} />
+                                    View Source
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Documents Used Section - Shows AFTER answer */}
                   {message.role === "assistant" && message.sources && message.sources.length > 0 && (
-                    <div className="mt-3 space-y-2">
-                      <p className="text-xs font-medium text-muted-foreground">Random Source Documents:</p>
-                      <div className="flex flex-wrap gap-2">
+                    <div className="mt-3 p-4 rounded-lg bg-green-500/10 border border-green-500/30">
+                      <div className="flex items-center gap-2 mb-3">
+                        <BookOpen size={16} className="text-green-600" />
+                        <p className="text-sm font-semibold text-foreground">Documents Used</p>
+                      </div>
+                      <div className="space-y-2">
                         {message.sources.map((source) => (
-                          <button
+                          <div
                             key={source.id}
-                            onClick={() => window.open(source.url || "#")}
-                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-accent/10 text-accent hover:bg-accent/20 transition-colors text-xs font-medium border border-accent/30"
-                            title={source.title}
+                            className="flex items-center justify-between p-2 rounded-lg bg-card border border-border/50"
                           >
-                            <FileText size={14} />
-                            <span className="max-w-[150px] truncate">{source.title}</span>
-                          </button>
+                            <div className="flex items-center gap-2 flex-1">
+                              <FileText size={14} className="text-accent" />
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-foreground">{source.title}</p>
+                                <div className="flex items-center gap-2 mt-1">
+                                  {source.taxYear && (
+                                    <span className="text-xs text-muted-foreground">
+                                      Tax Year: {source.taxYear}
+                                    </span>
+                                  )}
+                                  {source.authorityLevel && (
+                                    <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-blue-500/20 text-blue-600">
+                                      Authority Level {source.authorityLevel}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            {source.url && (
+                              <a
+                                href={source.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="ml-2 p-1.5 rounded hover:bg-muted/50 transition-colors"
+                                title="View document"
+                              >
+                                <ExternalLink size={14} className="text-accent" />
+                              </a>
+                            )}
+                          </div>
                         ))}
                       </div>
+                    </div>
+                  )}
+
+                  {/* Document Lineage Section - Shows full trace for compliance */}
+                  {message.role === "assistant" && message.retrievedChunks && message.retrievedChunks.length > 0 && (
+                    <div className="mt-3 p-4 rounded-lg bg-purple-500/10 border border-purple-500/30">
+                      <button
+                        onClick={() =>
+                          setShowLineage((prev) => ({
+                            ...prev,
+                            [message.id]: !prev[message.id],
+                          }))
+                        }
+                        className="flex items-center justify-between w-full mb-2"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Hash size={16} className="text-purple-600" />
+                          <p className="text-sm font-semibold text-foreground">
+                            Document Lineage (Compliance Trace)
+                          </p>
+                        </div>
+                        {showLineage[message.id] ? (
+                          <ChevronUp size={16} className="text-muted-foreground" />
+                        ) : (
+                          <ChevronDown size={16} className="text-muted-foreground" />
+                        )}
+                      </button>
+                      {showLineage[message.id] && (
+                        <div className="space-y-3 mt-3">
+                          <p className="text-xs text-muted-foreground mb-2">
+                            Full trace showing where each answer component originated from. Required for PCAOB, IRS Circular 230, HIPAA audits, and legal defensibility.
+                          </p>
+                          {message.retrievedChunks.map((chunk) => (
+                            <div
+                              key={chunk.id}
+                              className="p-3 rounded-lg bg-card border border-border"
+                            >
+                              <div className="flex items-start gap-2 flex-wrap">
+                                {/* Source Domain */}
+                                {chunk.sourceDomain && (
+                                  <>
+                                    <div className="flex items-center gap-1.5">
+                                      <Globe size={14} className="text-purple-600" />
+                                      <a
+                                        href={chunk.sourceUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-xs font-semibold text-purple-600 hover:underline"
+                                      >
+                                        {chunk.sourceDomain}
+                                      </a>
+                                    </div>
+                                    <ArrowRight size={12} className="text-muted-foreground mt-0.5" />
+                                  </>
+                                )}
+                                
+                                {/* File Name */}
+                                <div className="flex items-center gap-1.5">
+                                  <FileText size={14} className="text-accent" />
+                                  <span className="text-xs font-semibold text-foreground">
+                                    {chunk.documentName}
+                                  </span>
+                                  {chunk.fileVersion && (
+                                    <span className="text-xs text-muted-foreground">
+                                      (v{chunk.fileVersion})
+                                    </span>
+                                  )}
+                                </div>
+                                <ArrowRight size={12} className="text-muted-foreground mt-0.5" />
+                                
+                                {/* Chunk ID */}
+                                <div className="flex items-center gap-1.5">
+                                  <Database size={14} className="text-blue-600" />
+                                  <span className="text-xs font-semibold text-foreground">
+                                    {chunk.chunkId.replace("chunk_", "Chunk ")}
+                                  </span>
+                                </div>
+                                
+                                {/* Paragraph Number */}
+                                {chunk.paragraphNumber && (
+                                  <>
+                                    <ArrowRight size={12} className="text-muted-foreground mt-0.5" />
+                                    <div className="flex items-center gap-1.5">
+                                      <Hash size={14} className="text-green-600" />
+                                      <span className="text-xs font-semibold text-foreground">
+                                        Paragraph {chunk.paragraphNumber}
+                                      </span>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                              
+                              {/* Additional Metadata */}
+                              <div className="flex items-center gap-3 mt-2 pt-2 border-t border-border/50">
+                                {chunk.taxYear && (
+                                  <span className="text-xs text-muted-foreground">
+                                    Tax Year: <span className="font-semibold text-foreground">{chunk.taxYear}</span>
+                                  </span>
+                                )}
+                                {chunk.authorityLevel && (
+                                  <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-500/20 text-blue-600">
+                                    Authority Level {chunk.authorityLevel}
+                                  </span>
+                                )}
+                                {chunk.sourceUrl && (
+                                  <a
+                                    href={chunk.sourceUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-1 text-xs text-accent hover:underline"
+                                  >
+                                    <ExternalLink size={12} />
+                                    View Source
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -408,6 +791,161 @@ export default function TaxChatbot() {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Knowledge Base Statistics Panel */}
+          <div className="bg-card border border-border rounded-lg p-4 mt-4">
+            <div className="flex items-center gap-2 mb-4 text-foreground font-semibold">
+              <BarChart3 size={18} />
+              <span>Knowledge Base Statistics</span>
+            </div>
+
+            {/* Total Documents Indexed */}
+            <div className="mb-4 pb-4 border-b border-border">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-muted-foreground">Total Documents Indexed</span>
+                <span className="text-lg font-bold text-foreground">
+                  {kbStatistics.totalDocumentsIndexed.toLocaleString()}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Total Chunks</span>
+                <span className="text-lg font-bold text-foreground">
+                  {kbStatistics.totalChunks.toLocaleString()}
+                </span>
+              </div>
+            </div>
+
+            {/* Authority Level Breakdown */}
+            <div className="mb-4 pb-4 border-b border-border">
+              <p className="text-xs font-semibold text-muted-foreground uppercase mb-3">
+                Authority Level Breakdown
+              </p>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                    <span className="text-xs text-foreground">Level 1 - Statute/Reg</span>
+                  </div>
+                  <span className="text-sm font-semibold text-foreground">
+                    {kbStatistics.authorityLevelBreakdown.level1}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                    <span className="text-xs text-foreground">Level 2 - Forms/Instructions</span>
+                  </div>
+                  <span className="text-sm font-semibold text-foreground">
+                    {kbStatistics.authorityLevelBreakdown.level2}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                    <span className="text-xs text-foreground">Level 3 - Rulings/Procedures</span>
+                  </div>
+                  <span className="text-sm font-semibold text-foreground">
+                    {kbStatistics.authorityLevelBreakdown.level3}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-orange-500"></div>
+                    <span className="text-xs text-foreground">Level 4 - FAQs/Publications</span>
+                  </div>
+                  <span className="text-sm font-semibold text-foreground">
+                    {kbStatistics.authorityLevelBreakdown.level4}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
+                    <span className="text-xs text-foreground">Level 5 - Expert Sources</span>
+                  </div>
+                  <span className="text-sm font-semibold text-foreground">
+                    {kbStatistics.authorityLevelBreakdown.level5}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-gray-500"></div>
+                    <span className="text-xs text-foreground">Level 6 - Other/Low Authority</span>
+                  </div>
+                  <span className="text-sm font-semibold text-foreground">
+                    {kbStatistics.authorityLevelBreakdown.level6}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Sources Distribution */}
+            <div className="mb-4 pb-4 border-b border-border">
+              <p className="text-xs font-semibold text-muted-foreground uppercase mb-3 flex items-center gap-1">
+                <Globe size={12} />
+                Sources Distribution
+              </p>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-foreground">irs.gov</span>
+                  <span className="text-sm font-semibold text-foreground">
+                    {kbStatistics.sourcesDistribution.irsGov}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-foreground">State Sites</span>
+                  <span className="text-sm font-semibold text-foreground">
+                    {kbStatistics.sourcesDistribution.stateSites}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-foreground">law.cornell.edu</span>
+                  <span className="text-sm font-semibold text-foreground">
+                    {kbStatistics.sourcesDistribution.lawCornell}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-foreground">govinfo.gov</span>
+                  <span className="text-sm font-semibold text-foreground">
+                    {kbStatistics.sourcesDistribution.govInfo}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Freshness Stats */}
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase mb-3 flex items-center gap-1">
+                <Calendar size={12} />
+                Freshness Stats
+              </p>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-foreground">Last 24h</span>
+                  <span className="text-sm font-semibold text-green-600">
+                    {kbStatistics.freshnessStats.last24h}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-foreground">Last 7 Days</span>
+                  <span className="text-sm font-semibold text-foreground">
+                    {kbStatistics.freshnessStats.last7Days}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-foreground">Last 30 Days</span>
+                  <span className="text-sm font-semibold text-foreground">
+                    {kbStatistics.freshnessStats.last30Days}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-foreground">Stale &gt; 30 Days</span>
+                  <span className="text-sm font-semibold text-yellow-600">
+                    {kbStatistics.freshnessStats.staleOver30Days}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

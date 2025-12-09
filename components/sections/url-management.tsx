@@ -14,6 +14,8 @@ import {
   ChevronRight,
   ChevronDown,
   Check,
+  Clock,
+  Play,
 } from "lucide-react"
 
 interface URL {
@@ -26,6 +28,9 @@ interface URL {
   dataSource: "scrape" | "api"
   apiKey?: string
   apiEndpoint?: string
+  scheduleFrequency?: "on_demand" | "daily" | "weekly" | "monthly" | "quarterly" | "yearly"
+  nextScheduledRun?: string
+  lastSuccessfulRun?: string
 }
 
 const US_STATES = [
@@ -90,6 +95,9 @@ const initialURLs: URL[] = [
     active: true,
     lastUpdated: "4 hours ago",
     dataSource: "scrape",
+    scheduleFrequency: "daily",
+    nextScheduledRun: "2024-11-21 03:00 UTC",
+    lastSuccessfulRun: "2024-11-20 03:00 UTC",
   },
   {
     id: "3",
@@ -99,6 +107,9 @@ const initialURLs: URL[] = [
     active: true,
     lastUpdated: "6 hours ago",
     dataSource: "scrape",
+    scheduleFrequency: "weekly",
+    nextScheduledRun: "2024-11-25 02:00 UTC",
+    lastSuccessfulRun: "2024-11-18 02:00 UTC",
   },
   {
     id: "4",
@@ -108,6 +119,9 @@ const initialURLs: URL[] = [
     active: false,
     lastUpdated: "2 days ago",
     dataSource: "scrape",
+    scheduleFrequency: "monthly",
+    nextScheduledRun: "2024-12-01 01:00 UTC",
+    lastSuccessfulRun: "2024-11-01 01:00 UTC",
   },
   {
     id: "5",
@@ -117,8 +131,18 @@ const initialURLs: URL[] = [
     active: true,
     lastUpdated: "1 day ago",
     dataSource: "scrape",
+    scheduleFrequency: "on_demand",
   },
 ]
+
+const SCHEDULE_FREQUENCIES = [
+  { value: "on_demand", label: "On Demand" },
+  { value: "daily", label: "Daily" },
+  { value: "weekly", label: "Weekly" },
+  { value: "monthly", label: "Monthly" },
+  { value: "quarterly", label: "Quarterly" },
+  { value: "yearly", label: "Yearly" },
+] as const
 
 export default function URLManagement() {
   const [urls, setURLs] = useState<URL[]>(initialURLs)
@@ -134,14 +158,18 @@ export default function URLManagement() {
   const [currentPage, setCurrentPage] = useState(1)
   const urlsPerPage = 5
   const [viewingURL, setViewingURL] = useState<URL | null>(null)
+  const [scheduleFrequency, setScheduleFrequency] = useState<"on_demand" | "daily" | "weekly" | "monthly" | "quarterly" | "yearly">("on_demand")
+  const [scriptNow, setScriptNow] = useState(false)
 
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false)
   const [stateDropdownOpen, setStateDropdownOpen] = useState(false)
   const [stateSearchQuery, setStateSearchQuery] = useState("")
   const [statusDropdownOpen, setStatusDropdownOpen] = useState<string | null>(null)
+  const [scheduleDropdownOpen, setScheduleDropdownOpen] = useState(false)
   const categoryDropdownRef = useRef<HTMLDivElement>(null)
   const stateDropdownRef = useRef<HTMLDivElement>(null)
   const statusDropdownRef = useRef<HTMLDivElement>(null)
+  const scheduleDropdownRef = useRef<HTMLDivElement>(null)
 
   const filteredStates = US_STATES.filter((state) => state.toLowerCase().includes(stateSearchQuery.toLowerCase()))
 
@@ -156,6 +184,9 @@ export default function URLManagement() {
       }
       if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target as Node)) {
         setStatusDropdownOpen(null)
+      }
+      if (scheduleDropdownRef.current && !scheduleDropdownRef.current.contains(event.target as Node)) {
+        setScheduleDropdownOpen(false)
       }
     }
 
@@ -188,6 +219,9 @@ export default function URLManagement() {
         dataSource,
         apiKey: dataSource === "api" ? apiKey : undefined,
         apiEndpoint: dataSource === "api" ? apiEndpoint : undefined,
+        scheduleFrequency,
+        nextScheduledRun: scheduleFrequency !== "on_demand" ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : undefined,
+        lastSuccessfulRun: scriptNow ? new Date().toISOString() : undefined,
       }
 
       setURLs([url, ...urls])
@@ -196,6 +230,8 @@ export default function URLManagement() {
       setDataSource("scrape")
       setApiKey("")
       setApiEndpoint("")
+      setScheduleFrequency("on_demand")
+      setScriptNow(false)
       setShowForm(false)
       setValidationStatus("none")
     } catch {
@@ -340,6 +376,68 @@ export default function URLManagement() {
               </div>
             )}
 
+            {/* Scheduling Options */}
+            <div className="space-y-4 p-4 rounded-lg bg-muted/30 border border-border">
+              <label className="block text-sm font-medium text-foreground mb-2">Scheduling Options</label>
+              
+              {/* Script Now (On-Demand) */}
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setScriptNow(!scriptNow)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    scriptNow
+                      ? "bg-accent text-accent-foreground"
+                      : "bg-muted text-foreground hover:bg-muted/80"
+                  }`}
+                >
+                  <Play size={16} />
+                  Script Now (On-Demand)
+                </button>
+                {scriptNow && (
+                  <span className="text-xs text-muted-foreground">Will execute immediately after adding</span>
+                )}
+              </div>
+
+              {/* Update Frequency */}
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-2">Update Frequency</label>
+                <div ref={scheduleDropdownRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setScheduleDropdownOpen(!scheduleDropdownOpen)}
+                    className="w-full px-4 py-2.5 rounded-lg bg-input border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary flex items-center justify-between hover:bg-muted/50 transition-colors"
+                  >
+                    <span className="text-sm flex items-center gap-2">
+                      <Clock size={16} className="text-muted-foreground" />
+                      {SCHEDULE_FREQUENCIES.find((f) => f.value === scheduleFrequency)?.label || "Select frequency"}
+                    </span>
+                    <ChevronDown
+                      size={16}
+                      className={`text-muted-foreground transition-transform ${scheduleDropdownOpen ? "rotate-180" : ""}`}
+                    />
+                  </button>
+                  {scheduleDropdownOpen && (
+                    <div className="absolute z-50 w-full mt-1 bg-card border border-border rounded-lg shadow-xl overflow-hidden">
+                      {SCHEDULE_FREQUENCIES.map((freq) => (
+                        <div
+                          key={freq.value}
+                          onClick={() => {
+                            setScheduleFrequency(freq.value)
+                            setScheduleDropdownOpen(false)
+                          }}
+                          className="px-4 py-2.5 hover:bg-muted/50 cursor-pointer transition-colors flex items-center justify-between text-sm border-b border-border last:border-b-0"
+                        >
+                          <span className="text-foreground">{freq.label}</span>
+                          {scheduleFrequency === freq.value && <Check size={16} className="text-accent" />}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
             <div className={`grid grid-cols-2 gap-4 transition-all duration-300 ease-out ${stateDropdownOpen ? "pb-56" : ""}`}>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">Category</label>
@@ -474,6 +572,8 @@ export default function URLManagement() {
                   setDataSource("scrape")
                   setApiKey("")
                   setApiEndpoint("")
+                  setScheduleFrequency("on_demand")
+                  setScriptNow(false)
                   setValidationStatus("none")
                 }}
                 className="px-4 py-2.5 rounded-lg bg-muted text-foreground font-medium hover:bg-muted/80 transition-colors text-sm"
@@ -518,6 +618,7 @@ export default function URLManagement() {
               <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Category</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">State</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Status</th>
+              <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Schedule</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Last Updated</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Actions</th>
             </tr>
@@ -525,7 +626,7 @@ export default function URLManagement() {
           <tbody>
             {currentURLs.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">
+                <td colSpan={8} className="px-6 py-8 text-center text-muted-foreground">
                   {searchQuery ? "No URLs found matching your search" : "No URLs added yet"}
                 </td>
               </tr>
@@ -609,6 +710,18 @@ export default function URLManagement() {
                             </button>
                           </div>
                         </div>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-sm">
+                    <div className="flex flex-col gap-1">
+                      <span className="text-foreground font-medium capitalize">
+                        {url.scheduleFrequency === "on_demand" ? "On Demand" : url.scheduleFrequency}
+                      </span>
+                      {url.nextScheduledRun && (
+                        <span className="text-xs text-muted-foreground">
+                          Next: {new Date(url.nextScheduledRun).toLocaleDateString()}
+                        </span>
                       )}
                     </div>
                   </td>
@@ -720,6 +833,26 @@ export default function URLManagement() {
                   </div>
                 </div>
               )}
+              <div className="space-y-3 pt-1">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Schedule Frequency</label>
+                  <p className="text-foreground text-sm mt-1 capitalize">
+                    {viewingURL.scheduleFrequency === "on_demand" ? "On Demand" : viewingURL.scheduleFrequency || "Not set"}
+                  </p>
+                </div>
+                {viewingURL.nextScheduledRun && (
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Next Scheduled Run</label>
+                    <p className="text-foreground text-sm mt-1">{new Date(viewingURL.nextScheduledRun).toLocaleString()}</p>
+                  </div>
+                )}
+                {viewingURL.lastSuccessfulRun && (
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Last Successful Run</label>
+                    <p className="text-foreground text-sm mt-1">{new Date(viewingURL.lastSuccessfulRun).toLocaleString()}</p>
+                  </div>
+                )}
+              </div>
               <div>
                 <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Last Updated</label>
                 <p className="text-foreground text-sm mt-1">{viewingURL.lastUpdated}</p>
