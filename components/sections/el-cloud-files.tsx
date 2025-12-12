@@ -235,8 +235,7 @@ const formatSourcePath = (url: string): string => {
   }
 }
 
-const CATEGORY_TAGS = ["forms", "instructions", "faq", "code", "regulations", "bulletins", "sales-tax"]
-const JURISDICTION_TAGS = ["federal", "state"]
+const JURISDICTION_TAGS = ["federal", "state", "local"]
 
 const KNOWLEDGE_BASES = [
   { id: "all", name: "All" },
@@ -358,9 +357,10 @@ export default function ELCloudFiles() {
 
   const allTags = Array.from(new Set(files.flatMap((f) => f.tags)))
   const sortedTags = allTags.sort((a, b) => {
-    const aIsCategory = CATEGORY_TAGS.includes(a)
-    const bIsCategory = CATEGORY_TAGS.includes(b)
-    if (aIsCategory !== bIsCategory) return aIsCategory ? -1 : 1
+    // Sort tags: jurisdiction tags first, then others
+    const aIsJurisdiction = JURISDICTION_TAGS.includes(a)
+    const bIsJurisdiction = JURISDICTION_TAGS.includes(b)
+    if (aIsJurisdiction !== bIsJurisdiction) return aIsJurisdiction ? -1 : 1
     return a.localeCompare(b)
   })
 
@@ -644,29 +644,6 @@ export default function ELCloudFiles() {
             <Filter size={18} /> Tag Filter
           </div>
         <div className="space-y-4">
-          {/* Categories Section */}
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Document Categories</p>
-            <div className="flex flex-wrap gap-2">
-              {sortedTags
-                .filter((tag) => CATEGORY_TAGS.includes(tag))
-                .map((tag) => (
-                  <button
-                    key={tag}
-                    onClick={() => toggleTag(tag)}
-                    className={`px-3 py-1 rounded-full text-sm font-medium transition-colors capitalize ${
-                      selectedTags.includes(tag)
-                        ? "bg-accent text-accent-foreground"
-                        : "bg-muted text-foreground hover:bg-muted/80"
-                    }`}
-                  >
-                    {tag}
-                    {selectedTags.includes(tag) && " ✓"}
-                  </button>
-                ))}
-            </div>
-          </div>
-
           {/* Jurisdiction Section */}
           <div>
             <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Jurisdiction</p>

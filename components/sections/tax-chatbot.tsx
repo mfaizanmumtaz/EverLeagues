@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Send, Settings, FileText, Database, ChevronDown, ChevronUp, ExternalLink, BookOpen, BarChart3, Globe, Calendar, Layers, Hash, ArrowRight } from "lucide-react"
+import { Send, Settings, FileText, Database, ChevronDown, ChevronUp, ExternalLink, BookOpen, BarChart3, Globe, Calendar, Layers, Hash, ArrowRight, SlidersHorizontal } from "lucide-react"
 
 interface RetrievedChunk {
   id: string
@@ -39,6 +39,7 @@ interface Message {
 }
 
 const STATES = ["NY", "CA", "NJ", "CT", "MA", "PA"]
+const CITIES = ["NYC", "Philadelphia", "Los Angeles", "Chicago", "Houston", "Phoenix", "San Antonio", "San Diego", "Dallas", "San Jose"]
 const CATEGORIES = ["forms", "instructions", "faq", "code", "regulations", "bulletins", "sales-tax"]
 
 const RANDOM_SOURCE_NAMES = [
@@ -137,14 +138,21 @@ export default function TaxChatbot() {
     },
   ])
   const [inputValue, setInputValue] = useState("")
-  const [selectedJurisdiction, setSelectedJurisdiction] = useState<"federal" | "state" | null>(null)
+  const [selectedJurisdiction, setSelectedJurisdiction] = useState<"federal" | "state" | "local" | null>(null)
   const [selectedState, setSelectedState] = useState<string | null>(null)
+  const [selectedCity, setSelectedCity] = useState<string | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [expandedSourceId, setExpandedSourceId] = useState<string | null>(null)
   const [showRetrievalResults, setShowRetrievalResults] = useState<Record<string, boolean>>({})
   const [retrievalResults, setRetrievalResults] = useState<Record<string, RetrievedChunk[]>>({})
   const [showLineage, setShowLineage] = useState<Record<string, boolean>>({})
+  
+  // Search Quality Controls State
+  const [retrievalMode, setRetrievalMode] = useState<"balanced" | "high_recall" | "high_precision">("balanced")
+  const [authorityWeightControl, setAuthorityWeightControl] = useState<"strict" | "balanced" | "broad">("balanced")
+  const [semanticLexicalBalance, setSemanticLexicalBalance] = useState<number>(0.5)
+  const [showSearchControls, setShowSearchControls] = useState<boolean>(false)
 
   // Helper function to extract domain from URL
   const getDomainFromUrl = (url: string): string => {
@@ -171,16 +179,17 @@ export default function TaxChatbot() {
         id: `random-${Date.now()}-${i}`,
         title: randomName,
         category: selectedCategory || "general",
-        jurisdiction: selectedJurisdiction === "federal" ? "federal" : "state",
+        jurisdiction: selectedJurisdiction === "federal" ? "federal" : selectedJurisdiction === "state" ? "state" : "local",
       })
     }
 
     return sources
   }
 
-  const handleJurisdictionSelect = (jurisdiction: "federal" | "state") => {
+  const handleJurisdictionSelect = (jurisdiction: "federal" | "state" | "local") => {
     setSelectedJurisdiction(jurisdiction)
     setSelectedState(null)
+    setSelectedCity(null)
     setSelectedCategory(null)
 
     const assistantMessage: Message = {
@@ -189,7 +198,9 @@ export default function TaxChatbot() {
       content:
         jurisdiction === "federal"
           ? "You've selected Federal jurisdiction. What category would you like to search? (forms, instructions, faq, code, regulations, bulletins)"
-          : "You've selected State jurisdiction. Which state would you like to search? (NY, CA, NJ, CT, MA, PA)",
+          : jurisdiction === "state"
+          ? "You've selected State jurisdiction. Which state would you like to search? (NY, CA, NJ, CT, MA, PA)"
+          : "You've selected Local jurisdiction. Which city would you like to search? (NYC, Philadelphia, Los Angeles, Chicago, etc.)",
       timestamp: new Date(),
     }
     setMessages((prev) => [...prev, assistantMessage])
@@ -208,6 +219,19 @@ export default function TaxChatbot() {
     setMessages((prev) => [...prev, assistantMessage])
   }
 
+  const handleCitySelect = (city: string) => {
+    setSelectedCity(city)
+    setSelectedCategory(null)
+
+    const assistantMessage: Message = {
+      id: Date.now().toString(),
+      role: "assistant",
+      content: `You've selected ${city}. What category would you like to search? (forms, instructions, faq, code, regulations, bulletins, sales-tax)`,
+      timestamp: new Date(),
+    }
+    setMessages((prev) => [...prev, assistantMessage])
+  }
+
   const handleCategorySelect = (category: string) => {
     setSelectedCategory(category)
 
@@ -215,7 +239,11 @@ export default function TaxChatbot() {
       id: Date.now().toString(),
       role: "assistant",
       content: `Searching for ${category} in ${
-        selectedJurisdiction === "federal" ? "Federal" : `${selectedState} State`
+        selectedJurisdiction === "federal" 
+          ? "Federal" 
+          : selectedJurisdiction === "state"
+          ? `${selectedState} State`
+          : `${selectedCity} Local`
       } documents. What would you like to know?`,
       timestamp: new Date(),
     }
@@ -287,7 +315,7 @@ export default function TaxChatbot() {
           id: `doc-${chunk.documentName}`,
           title: displayTitle,
           category: selectedCategory || "general",
-          jurisdiction: selectedJurisdiction === "federal" ? "federal" : "state",
+          jurisdiction: selectedJurisdiction === "federal" ? "federal" : selectedJurisdiction === "state" ? "state" : "local",
           url: chunk.sourceUrl,
           authorityLevel: chunk.authorityLevel,
           taxYear: chunk.taxYear,
@@ -311,6 +339,30 @@ export default function TaxChatbot() {
     setMessages((prev) => [...prev, userMessage])
     setInputValue("")
     setIsLoading(true)
+
+    // Prepare search quality controls for API call
+    const searchQualityControls = {
+      retrieval_mode: retrievalMode,
+      authority_weight_control: authorityWeightControl,
+      semantic_lexical_balance: semanticLexicalBalance,
+    }
+
+    const filters = {
+      jurisdiction: selectedJurisdiction || undefined,
+      state: selectedState || undefined,
+      city: selectedCity || undefined,
+      category: selectedCategory ? [selectedCategory] : undefined,
+    }
+
+    // TODO: Make actual API call with search quality controls
+    // await fetch('/api/search/rag', {
+    //   method: 'POST',
+    //   body: JSON.stringify({
+    //     query: inputValue,
+    //     filters,
+    //     search_quality_controls: searchQualityControls
+    //   })
+    // })
 
     // Simulate RAG retrieval - show chunks BEFORE generating answer
     setTimeout(() => {
@@ -702,10 +754,10 @@ The information comes from authoritative tax documents including Form 1040 instr
             {/* Jurisdiction Selection */}
             <div className="space-y-2">
               <p className="text-xs font-semibold text-muted-foreground uppercase">Jurisdiction</p>
-              <div className="flex gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   onClick={() => handleJurisdictionSelect("federal")}
-                  className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                     selectedJurisdiction === "federal"
                       ? "bg-accent text-accent-foreground"
                       : "bg-muted text-foreground hover:bg-muted/80"
@@ -715,13 +767,23 @@ The information comes from authoritative tax documents including Form 1040 instr
                 </button>
                 <button
                   onClick={() => handleJurisdictionSelect("state")}
-                  className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                     selectedJurisdiction === "state"
                       ? "bg-accent text-accent-foreground"
                       : "bg-muted text-foreground hover:bg-muted/80"
                   }`}
                 >
                   State
+                </button>
+                <button
+                  onClick={() => handleJurisdictionSelect("local")}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    selectedJurisdiction === "local"
+                      ? "bg-accent text-accent-foreground"
+                      : "bg-muted text-foreground hover:bg-muted/80"
+                  }`}
+                >
+                  Local
                 </button>
               </div>
             </div>
@@ -742,6 +804,28 @@ The information comes from authoritative tax documents including Form 1040 instr
                       }`}
                     >
                       {state}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* City Selection (if Local is selected) */}
+            {selectedJurisdiction === "local" && (
+              <div className="space-y-2 mt-4">
+                <p className="text-xs font-semibold text-muted-foreground uppercase">Select City</p>
+                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+                  {CITIES.map((city) => (
+                    <button
+                      key={city}
+                      onClick={() => handleCitySelect(city)}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        selectedCity === city
+                          ? "bg-accent text-accent-foreground"
+                          : "bg-muted text-foreground hover:bg-muted/80"
+                      }`}
+                    >
+                      {city}
                     </button>
                   ))}
                 </div>
@@ -783,11 +867,122 @@ The information comes from authoritative tax documents including Form 1040 instr
                       State: <span className="font-semibold">{selectedState}</span>
                     </p>
                   )}
+                  {selectedCity && (
+                    <p>
+                      City: <span className="font-semibold">{selectedCity}</span>
+                    </p>
+                  )}
                   {selectedCategory && (
                     <p>
                       Category: <span className="font-semibold capitalize">{selectedCategory}</span>
                     </p>
                   )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Search Quality Controls Panel */}
+          <div className="bg-card border border-border rounded-lg p-4 mt-4">
+            <button
+              onClick={() => setShowSearchControls(!showSearchControls)}
+              className="flex items-center justify-between w-full mb-2"
+            >
+              <div className="flex items-center gap-2 text-foreground font-semibold">
+                <SlidersHorizontal size={18} />
+                <span>Search Quality Controls</span>
+              </div>
+              {showSearchControls ? (
+                <ChevronUp size={16} className="text-muted-foreground" />
+              ) : (
+                <ChevronDown size={16} className="text-muted-foreground" />
+              )}
+            </button>
+
+            {showSearchControls && (
+              <div className="space-y-4 mt-4">
+                {/* Retrieval Mode */}
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase">Retrieval Mode</p>
+                  <div className="space-y-2">
+                    {[
+                      { value: "balanced", label: "Balanced", desc: "Balanced approach between precision and recall" },
+                      { value: "high_recall", label: "High Recall", desc: "Prioritize finding all relevant documents" },
+                      { value: "high_precision", label: "High Precision", desc: "Prioritize exact matches" },
+                    ].map((mode) => (
+                      <button
+                        key={mode.value}
+                        onClick={() => setRetrievalMode(mode.value as any)}
+                        className={`w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
+                          retrievalMode === mode.value
+                            ? "bg-accent text-accent-foreground"
+                            : "bg-muted text-foreground hover:bg-muted/80"
+                        }`}
+                      >
+                        <div className="font-semibold">{mode.label}</div>
+                        <div className="text-xs opacity-70 mt-0.5">{mode.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Authority Weight Control */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase">Authority Weight Control</p>
+                    <span className="text-xs text-foreground font-medium capitalize">{authorityWeightControl}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground w-12">Strict</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="2"
+                      step="1"
+                      value={authorityWeightControl === "strict" ? 0 : authorityWeightControl === "balanced" ? 1 : 2}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value)
+                        setAuthorityWeightControl(val === 0 ? "strict" : val === 1 ? "balanced" : "broad")
+                      }}
+                      className="flex-1"
+                    />
+                    <span className="text-xs text-muted-foreground w-12 text-right">Broad</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground px-1">
+                    {authorityWeightControl === "strict" && "Heavily favor high-authority sources (Level 1-2)"}
+                    {authorityWeightControl === "balanced" && "Moderate authority bias (default)"}
+                    {authorityWeightControl === "broad" && "Minimal authority bias, include lower-authority sources"}
+                  </div>
+                </div>
+
+                {/* Semantic + Lexical Balance Slider */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase">Semantic / Lexical Balance</p>
+                    <span className="text-xs text-foreground font-medium">
+                      {semanticLexicalBalance < 0.3 ? "Lexical" : semanticLexicalBalance > 0.7 ? "Semantic" : "Balanced"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground w-16">Lexical (0.0)</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.1"
+                      value={semanticLexicalBalance}
+                      onChange={(e) => setSemanticLexicalBalance(parseFloat(e.target.value))}
+                      className="flex-1"
+                    />
+                    <span className="text-xs text-muted-foreground w-16 text-right">Semantic (1.0)</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground px-1">
+                    {semanticLexicalBalance.toFixed(1)} - {semanticLexicalBalance < 0.3 
+                      ? "More keyword/exact matching" 
+                      : semanticLexicalBalance > 0.7 
+                      ? "More semantic/meaning-based matching"
+                      : "Balanced between keyword and semantic matching"}
+                  </div>
                 </div>
               </div>
             )}
