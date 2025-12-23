@@ -1,6 +1,7 @@
 "use client"
 
-import { FileText, Zap, CheckCircle2, TrendingUp, Database, AlertCircle, BarChart3, Layers, Activity, Copy, AlertTriangle, XCircle, Clock, FileX, Link2, RefreshCw, ExternalLink, Calendar, Globe, FileCheck } from "lucide-react"
+import { useState } from "react"
+import { FileText, Zap, CheckCircle2, TrendingUp, Database, AlertCircle, BarChart3, Layers, Activity, Copy, AlertTriangle, XCircle, Clock, FileX, Link2, RefreshCw, ExternalLink, Calendar, Globe, FileCheck, LayoutDashboard } from "lucide-react"
 import MetricCard from "@/components/metric-card"
 
 interface Issue {
@@ -16,6 +17,9 @@ interface Issue {
 }
 
 export default function DashboardOverview() {
+  // Tab state
+  const [activeTab, setActiveTab] = useState<"overview" | "operations" | "freshness">("overview")
+  
   // Mock Issues/Alerting Data
   const issues: Issue[] = [
     {
@@ -277,26 +281,68 @@ export default function DashboardOverview() {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-foreground mb-2">Dashboard</h1>
-        <p className="text-muted-foreground">Real-time overview of your tax document system</p>
+      {/* Header with Integration Badge */}
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground mb-2">Dashboard</h1>
+          <p className="text-muted-foreground">Real-time overview of your tax document system</p>
+        </div>
+        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-accent/10 border border-accent/20">
+          <div className="w-2 h-2 rounded-full bg-accent animate-pulse-glow" />
+          <span className="text-sm font-semibold text-accent">Integrated with EL RAG</span>
+        </div>
       </div>
 
-      {/* Integration Badge */}
-      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-accent/10 border border-accent/20">
-        <div className="w-2 h-2 rounded-full bg-accent animate-pulse-glow" />
-        <span className="text-sm font-semibold text-accent">✓ Integrated with EL RAG</span>
+      {/* Tab Navigation */}
+      <div className="border-b border-border">
+        <div className="flex gap-1">
+          <button
+            onClick={() => setActiveTab("overview")}
+            className={`px-4 py-3 text-sm font-medium transition-colors flex items-center gap-2 border-b-2 -mb-px ${
+              activeTab === "overview"
+                ? "border-accent text-accent"
+                : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+            }`}
+          >
+            <LayoutDashboard size={18} />
+            Dashboard
+          </button>
+          <button
+            onClick={() => setActiveTab("operations")}
+            className={`px-4 py-3 text-sm font-medium transition-colors flex items-center gap-2 border-b-2 -mb-px ${
+              activeTab === "operations"
+                ? "border-accent text-accent"
+                : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+            }`}
+          >
+            <AlertTriangle size={18} />
+            Alerts & Issues
+          </button>
+          <button
+            onClick={() => setActiveTab("freshness")}
+            className={`px-4 py-3 text-sm font-medium transition-colors flex items-center gap-2 border-b-2 -mb-px ${
+              activeTab === "freshness"
+                ? "border-accent text-accent"
+                : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+            }`}
+          >
+            <Calendar size={18} />
+            Document Freshness
+          </button>
+        </div>
       </div>
 
-      {/* Metrics Grid - Added System Uptime and Processing Speed cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {metrics.map((metric, idx) => (
-          <MetricCard key={idx} {...metric} />
-        ))}
-      </div>
+      {/* Dashboard Tab Content */}
+      {activeTab === "overview" && (
+        <div className="space-y-8">
+          {/* Metrics Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {metrics.map((metric, idx) => (
+              <MetricCard key={idx} {...metric} />
+            ))}
+          </div>
 
-      {/* Main Content Grid - Added System Scalability section with progress bars */}
+          {/* Main Content Grid - System Scalability section with progress bars */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* System Scalability */}
         <div className="lg:col-span-2 p-6 rounded-lg bg-card border border-border">
@@ -551,13 +597,16 @@ export default function DashboardOverview() {
           </div>
         </div>
       </div>
+      </div>
+      )}
 
-      {/* Alerting / Issues Section */}
-      <div className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-bold text-foreground mb-2">Alerting & Issues</h2>
-          <p className="text-muted-foreground">Monitor and resolve system issues, failures, and operational alerts</p>
-        </div>
+      {/* Operations Tab Content */}
+      {activeTab === "operations" && (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-2xl font-bold text-foreground mb-2">Alerting & Issues</h2>
+            <p className="text-muted-foreground">Monitor and resolve system issues, failures, and operational alerts</p>
+          </div>
 
         {/* Issues Summary Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
@@ -762,14 +811,16 @@ export default function DashboardOverview() {
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Freshness Dashboard Section */}
-      <div className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-bold text-foreground mb-2">Document Freshness & Staleness Alerts</h2>
-          <p className="text-muted-foreground">Monitor document freshness, URL changes, and new IRS releases</p>
         </div>
+      )}
+
+      {/* Freshness Tab Content */}
+      {activeTab === "freshness" && (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-2xl font-bold text-foreground mb-2">Document Freshness & Staleness Alerts</h2>
+            <p className="text-muted-foreground">Monitor document freshness, URL changes, and new IRS releases</p>
+          </div>
 
         {/* Freshness Metrics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -1017,7 +1068,8 @@ export default function DashboardOverview() {
             </button>
           </div>
         )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }

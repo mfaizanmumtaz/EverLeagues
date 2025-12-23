@@ -1,9 +1,9 @@
 "use client"
 
 import type React from "react"
-import { LayoutDashboard, Link2, Files, MessageSquare } from "lucide-react"
+import { LayoutDashboard, Link2, Files, MessageSquare, Shield } from "lucide-react"
 
-type Section = "dashboard" | "urls" | "files" | "chatbot"
+type Section = "dashboard" | "urls" | "files" | "chatbot" | "governance-logs"
 
 interface NavItem {
   id: Section
@@ -16,6 +16,7 @@ const navItems: NavItem[] = [
   { id: "urls", label: "URL Management", icon: <Link2 size={20} /> },
   { id: "files", label: "EL Cloud Files", icon: <Files size={20} /> },
   { id: "chatbot", label: "Knowledge Base", icon: <MessageSquare size={20} /> },
+  { id: "governance-logs", label: "Governance Audit Log", icon: <Shield size={20} /> },
 ]
 
 export default function DashboardLayout({ activeSection, setActiveSection, children }: any) {

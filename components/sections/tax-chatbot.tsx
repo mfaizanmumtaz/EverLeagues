@@ -15,6 +15,12 @@ interface RetrievedChunk {
   paragraphNumber?: number
   fileVersion?: string
   sourceDomain?: string
+  effectiveFrom?: string
+  jurisdiction?: string
+  state?: string
+  conflictResolutionReason?: "higher_authority" | "more_recent_date" | "jurisdiction_match" | null
+  priorityRank?: number
+  isPreferred?: boolean
 }
 
 interface SourceDocument {
@@ -26,6 +32,11 @@ interface SourceDocument {
   excerpt?: string
   authorityLevel?: 1 | 2 | 3 | 4 | 5 | 6
   taxYear?: number
+  effectiveFrom?: string
+  state?: string
+  conflictResolutionReason?: "higher_authority" | "more_recent_date" | "jurisdiction_match" | null
+  priorityRank?: number
+  isPreferred?: boolean
   chunks?: RetrievedChunk[]
 }
 
@@ -169,6 +180,31 @@ export default function TaxChatbot() {
     }
   }
 
+  // Helper function to get conflict resolution reason label
+  const getConflictResolutionLabel = (reason: "higher_authority" | "more_recent_date" | "jurisdiction_match" | null | undefined): string => {
+    switch (reason) {
+      case "higher_authority":
+        return "Higher Authority"
+      case "more_recent_date":
+        return "More Recent Date"
+      case "jurisdiction_match":
+        return "Jurisdiction Match"
+      default:
+        return ""
+    }
+  }
+
+  // Helper function to format effective date
+  const formatEffectiveDate = (dateString?: string): string => {
+    if (!dateString) return ""
+    try {
+      const date = new Date(dateString)
+      return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
+    } catch {
+      return dateString
+    }
+  }
+
   const generateRandomSources = (): SourceDocument[] => {
     const randomCount = Math.floor(Math.random() * 2) + 3 // Random between 3-4
     const sources: SourceDocument[] = []
@@ -253,6 +289,7 @@ export default function TaxChatbot() {
   const generateRetrievedChunks = (): RetrievedChunk[] => {
     // Mock retrieved chunks that would come from RAG retrieval
     // These chunks are shown BEFORE the answer is generated
+    // Conflict resolution: Priority 1 = highest authority, Priority 2 = more recent, Priority 3 = jurisdiction match
     const chunks: RetrievedChunk[] = [
       {
         id: "chunk-1",
@@ -265,6 +302,11 @@ export default function TaxChatbot() {
         sourceUrl: "https://www.irs.gov/forms-pubs/about-form-1040",
         paragraphNumber: 17,
         fileVersion: "2024.1",
+        effectiveFrom: "2024-01-01",
+        jurisdiction: "federal",
+        conflictResolutionReason: "more_recent_date",
+        priorityRank: 1,
+        isPreferred: true,
       },
       {
         id: "chunk-2",
@@ -277,6 +319,11 @@ export default function TaxChatbot() {
         sourceUrl: "https://www.irs.gov/publications/p535",
         paragraphNumber: 23,
         fileVersion: "2024.2",
+        effectiveFrom: "2024-01-01",
+        jurisdiction: "federal",
+        conflictResolutionReason: null,
+        priorityRank: 3,
+        isPreferred: false,
       },
       {
         id: "chunk-3",
@@ -289,11 +336,19 @@ export default function TaxChatbot() {
         sourceUrl: "https://www.irs.gov/pub/irs-drop/rp-24-15.pdf",
         paragraphNumber: 12,
         fileVersion: "2024.15",
+        effectiveFrom: "2024-06-01",
+        jurisdiction: "federal",
+        conflictResolutionReason: "more_recent_date",
+        priorityRank: 2,
+        isPreferred: false,
       },
     ]
 
+    // Sort by priority rank (1 = highest priority/preferred)
+    const sortedChunks = chunks.sort((a, b) => (a.priorityRank || 999) - (b.priorityRank || 999))
+
     // Add sourceDomain to each chunk
-    return chunks.map((chunk) => ({
+    return sortedChunks.map((chunk) => ({
       ...chunk,
       sourceDomain: chunk.sourceUrl ? getDomainFromUrl(chunk.sourceUrl) : undefined,
     }))
@@ -315,15 +370,21 @@ export default function TaxChatbot() {
           id: `doc-${chunk.documentName}`,
           title: displayTitle,
           category: selectedCategory || "general",
-          jurisdiction: selectedJurisdiction === "federal" ? "federal" : selectedJurisdiction === "state" ? "state" : "local",
+          jurisdiction: chunk.jurisdiction || (selectedJurisdiction === "federal" ? "federal" : selectedJurisdiction === "state" ? "state" : "local"),
           url: chunk.sourceUrl,
           authorityLevel: chunk.authorityLevel,
           taxYear: chunk.taxYear,
+          effectiveFrom: chunk.effectiveFrom,
+          state: chunk.state,
+          conflictResolutionReason: chunk.conflictResolutionReason,
+          priorityRank: chunk.priorityRank,
+          isPreferred: chunk.isPreferred,
         })
       }
     })
     
-    return Array.from(documentMap.values())
+    // Sort by priority rank (preferred documents first)
+    return Array.from(documentMap.values()).sort((a, b) => (a.priorityRank || 999) - (b.priorityRank || 999))
   }
 
   const handleSendMessage = async () => {
@@ -382,12 +443,17 @@ export default function TaxChatbot() {
       // Generate documents used list from chunks
       const documentsUsed = generateDocumentsUsed(retrievedChunks)
 
+      // Generate response with inline citations
+      const responseWithCitations = `Based on the retrieved documents, I found relevant information about "${userMessage.content}". Here's what I found:
+
+The standard deduction for tax year 2024 is $14,600 for single filers and $29,200 for married couples filing jointly [1]. Business expenses are deductible if the business operates to make a profit, including rent, utilities, salaries, and office supplies [2]. Revenue Procedure 2024-15 provides additional guidance on the treatment of certain business expenses [3].
+
+These documents provide the most current guidance for tax year 2024.`
+
       const assistantResponse: Message = {
         id: messageId,
         role: "assistant",
-        content: `Based on the retrieved documents, I found relevant information about "${userMessage.content}". Here's what I found:
-
-The information comes from authoritative tax documents including Form 1040 instructions, IRS Publication 535 on Business Expenses, and Revenue Procedure 2024-15. These documents provide the most current guidance for tax year 2024.`,
+        content: responseWithCitations,
         timestamp: new Date(),
         sources: documentsUsed,
         retrievedChunks: retrievedChunks,
@@ -398,6 +464,40 @@ The information comes from authoritative tax documents including Form 1040 instr
   }
 
   const isInputDisabled = !selectedCategory
+
+  // Render message content with inline citation badges
+  const renderContentWithCitations = (content: string, sources?: SourceDocument[]) => {
+    if (!sources || sources.length === 0) {
+      return <span>{content}</span>
+    }
+    
+    // Split content by citation patterns like [1], [2], etc.
+    const parts = content.split(/(\[\d+\])/g)
+    
+    return (
+      <>
+        {parts.map((part, index) => {
+          const citationMatch = part.match(/\[(\d+)\]/)
+          if (citationMatch) {
+            const citationNum = parseInt(citationMatch[1])
+            const source = sources[citationNum - 1]
+            if (source) {
+              return (
+                <span
+                  key={index}
+                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 mx-0.5 rounded bg-accent/20 text-accent text-xs font-medium cursor-pointer hover:bg-accent/30 transition-colors"
+                  title={`${source.title} (${source.taxYear || "N/A"}) - Authority Level ${source.authorityLevel || "N/A"}`}
+                >
+                  {part}
+                </span>
+              )
+            }
+          }
+          return <span key={index}>{part}</span>
+        })}
+      </>
+    )
+  }
 
   // Mock Knowledge Base Statistics Data
   const kbStatistics = {
@@ -447,11 +547,66 @@ The information comes from authoritative tax documents including Form 1040 instr
                       message.role === "user" ? "bg-accent text-accent-foreground" : "bg-muted text-foreground"
                     }`}
                   >
-                    <p className="text-sm">{message.content}</p>
+                    <p className="text-sm whitespace-pre-wrap">
+                      {message.role === "assistant" && message.sources 
+                        ? renderContentWithCitations(message.content, message.sources)
+                        : message.content
+                      }
+                    </p>
                     <p className="text-xs opacity-70 mt-1">
                       {message.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                     </p>
                   </div>
+
+                  {/* Citation Sources - Quick Reference */}
+                  {message.role === "assistant" && message.sources && message.sources.length > 0 && (
+                    <div className="mt-3 p-3 rounded-lg bg-accent/5 border border-accent/20">
+                      <p className="text-xs font-semibold text-accent uppercase mb-2 flex items-center gap-1.5">
+                        <FileText size={12} />
+                        Sources Cited in Response
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {message.sources.map((source, index) => (
+                          <div
+                            key={source.id}
+                            className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-card border border-border/50 hover:border-accent/50 transition-colors group"
+                          >
+                            <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-accent text-accent-foreground">
+                              [{index + 1}]
+                            </span>
+                            <div className="flex flex-col">
+                              <span className="text-xs font-medium text-foreground group-hover:text-accent transition-colors">
+                                {source.title.length > 40 ? source.title.slice(0, 40) + "..." : source.title}
+                              </span>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                {source.authorityLevel && (
+                                  <span className="text-[10px] px-1 py-0.5 rounded bg-blue-500/20 text-blue-600">
+                                    Level {source.authorityLevel}
+                                  </span>
+                                )}
+                                {source.taxYear && (
+                                  <span className="text-[10px] text-muted-foreground">
+                                    {source.taxYear}
+                                  </span>
+                                )}
+                                {source.url && (
+                                  <a
+                                    href={source.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-[10px] text-accent hover:underline flex items-center gap-0.5"
+                                  >
+                                    <ExternalLink size={8} />
+                                    Source
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* RAG Retrieval Results Panel - Shows BEFORE answer */}
                   {message.role === "assistant" && message.retrievedChunks && message.retrievedChunks.length > 0 && (
@@ -482,11 +637,20 @@ The information comes from authoritative tax documents including Form 1040 instr
                           {message.retrievedChunks.map((chunk) => (
                             <div
                               key={chunk.id}
-                              className="p-3 rounded-lg bg-card border border-border"
+                              className={`p-3 rounded-lg bg-card border ${
+                                chunk.isPreferred
+                                  ? "border-green-500/50 bg-green-500/5"
+                                  : "border-border"
+                              }`}
                             >
                               <div className="flex items-start justify-between mb-2">
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 flex-wrap">
                                   <FileText size={14} className="text-accent" />
+                                  {chunk.priorityRank && (
+                                    <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-accent text-accent-foreground">
+                                      #{chunk.priorityRank}
+                                    </span>
+                                  )}
                                   <span className="text-xs font-semibold text-foreground">
                                     {chunk.documentName}
                                   </span>
@@ -495,8 +659,13 @@ The information comes from authoritative tax documents including Form 1040 instr
                                       (Chunk {chunk.chunkId})
                                     </span>
                                   )}
+                                  {chunk.isPreferred && (
+                                    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/20 text-green-600 border border-green-500/30">
+                                      Preferred
+                                    </span>
+                                  )}
                                 </div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 flex-wrap">
                                   {chunk.authorityLevel && (
                                     <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-500/20 text-blue-600">
                                       Level {chunk.authorityLevel}
@@ -507,12 +676,32 @@ The information comes from authoritative tax documents including Form 1040 instr
                                   </span>
                                 </div>
                               </div>
+                              {chunk.conflictResolutionReason && (
+                                <div className="mb-2">
+                                  <span className="px-2 py-0.5 rounded text-xs font-medium bg-purple-500/20 text-purple-600 border border-purple-500/30">
+                                    Conflict Resolution: {getConflictResolutionLabel(chunk.conflictResolutionReason)}
+                                  </span>
+                                </div>
+                              )}
                               <p className="text-xs text-muted-foreground mb-2 line-clamp-2">
                                 {chunk.content}
                               </p>
-                              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                              <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
                                 {chunk.taxYear && (
                                   <span>Tax Year: {chunk.taxYear}</span>
+                                )}
+                                {chunk.effectiveFrom && (
+                                  <span className="flex items-center gap-1">
+                                    <Calendar size={12} />
+                                    Effective: {formatEffectiveDate(chunk.effectiveFrom)}
+                                  </span>
+                                )}
+                                {chunk.jurisdiction && (
+                                  <span className="flex items-center gap-1">
+                                    <Globe size={12} />
+                                    {chunk.jurisdiction.charAt(0).toUpperCase() + chunk.jurisdiction.slice(1)}
+                                    {chunk.state && ` - ${chunk.state}`}
+                                  </span>
                                 )}
                                 {chunk.sourceUrl && (
                                   <a
@@ -539,26 +728,63 @@ The information comes from authoritative tax documents including Form 1040 instr
                       <div className="flex items-center gap-2 mb-3">
                         <BookOpen size={16} className="text-green-600" />
                         <p className="text-sm font-semibold text-foreground">Documents Used</p>
+                        <span className="text-xs text-muted-foreground">
+                          (Sorted by conflict resolution priority)
+                        </span>
                       </div>
                       <div className="space-y-2">
                         {message.sources.map((source) => (
                           <div
                             key={source.id}
-                            className="flex items-center justify-between p-2 rounded-lg bg-card border border-border/50"
+                            className={`flex items-center justify-between p-2 rounded-lg border ${
+                              source.isPreferred
+                                ? "bg-green-500/10 border-green-500/50"
+                                : "bg-card border-border/50"
+                            }`}
                           >
                             <div className="flex items-center gap-2 flex-1">
                               <FileText size={14} className="text-accent" />
                               <div className="flex-1">
-                                <p className="text-sm font-medium text-foreground">{source.title}</p>
-                                <div className="flex items-center gap-2 mt-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  {source.priorityRank && (
+                                    <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-accent text-accent-foreground">
+                                      #{source.priorityRank}
+                                    </span>
+                                  )}
+                                  <p className="text-sm font-medium text-foreground">{source.title}</p>
+                                  {source.isPreferred && (
+                                    <span className="px-1.5 py-0.5 rounded-full text-xs font-medium bg-green-500/20 text-green-600 border border-green-500/30">
+                                      Preferred
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 mt-1 flex-wrap">
                                   {source.taxYear && (
                                     <span className="text-xs text-muted-foreground">
                                       Tax Year: {source.taxYear}
                                     </span>
                                   )}
+                                  {source.effectiveFrom && (
+                                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                      <Calendar size={12} />
+                                      Effective: {formatEffectiveDate(source.effectiveFrom)}
+                                    </span>
+                                  )}
                                   {source.authorityLevel && (
                                     <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-blue-500/20 text-blue-600">
                                       Authority Level {source.authorityLevel}
+                                    </span>
+                                  )}
+                                  {source.jurisdiction && (
+                                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                      <Globe size={12} />
+                                      {source.jurisdiction.charAt(0).toUpperCase() + source.jurisdiction.slice(1)}
+                                      {source.state && ` - ${source.state}`}
+                                    </span>
+                                  )}
+                                  {source.conflictResolutionReason && (
+                                    <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-purple-500/20 text-purple-600 border border-purple-500/30">
+                                      {getConflictResolutionLabel(source.conflictResolutionReason)}
                                     </span>
                                   )}
                                 </div>
@@ -608,14 +834,35 @@ The information comes from authoritative tax documents including Form 1040 instr
                       {showLineage[message.id] && (
                         <div className="space-y-3 mt-3">
                           <p className="text-xs text-muted-foreground mb-2">
-                            Full trace showing where each answer component originated from. Required for PCAOB, IRS Circular 230, HIPAA audits, and legal defensibility.
+                            Full trace showing where each answer component originated from. Required for PCAOB, IRS Circular 230, HIPAA audits, and legal defensibility. Includes conflict resolution audit trail.
                           </p>
                           {message.retrievedChunks.map((chunk) => (
                             <div
                               key={chunk.id}
-                              className="p-3 rounded-lg bg-card border border-border"
+                              className={`p-3 rounded-lg bg-card border ${
+                                chunk.isPreferred
+                                  ? "border-green-500/50 bg-green-500/5"
+                                  : "border-border"
+                              }`}
                             >
                               <div className="flex items-start gap-2 flex-wrap">
+                                {/* Priority Rank */}
+                                {chunk.priorityRank && (
+                                  <>
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-accent text-accent-foreground">
+                                        Priority #{chunk.priorityRank}
+                                      </span>
+                                      {chunk.isPreferred && (
+                                        <span className="px-1.5 py-0.5 rounded-full text-xs font-medium bg-green-500/20 text-green-600 border border-green-500/30">
+                                          Preferred
+                                        </span>
+                                      )}
+                                    </div>
+                                    <ArrowRight size={12} className="text-muted-foreground mt-0.5" />
+                                  </>
+                                )}
+                                
                                 {/* Source Domain */}
                                 {chunk.sourceDomain && (
                                   <>
@@ -671,15 +918,33 @@ The information comes from authoritative tax documents including Form 1040 instr
                               </div>
                               
                               {/* Additional Metadata */}
-                              <div className="flex items-center gap-3 mt-2 pt-2 border-t border-border/50">
+                              <div className="flex items-center gap-3 mt-2 pt-2 border-t border-border/50 flex-wrap">
                                 {chunk.taxYear && (
                                   <span className="text-xs text-muted-foreground">
                                     Tax Year: <span className="font-semibold text-foreground">{chunk.taxYear}</span>
                                   </span>
                                 )}
+                                {chunk.effectiveFrom && (
+                                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                    <Calendar size={12} />
+                                    Effective: <span className="font-semibold text-foreground">{formatEffectiveDate(chunk.effectiveFrom)}</span>
+                                  </span>
+                                )}
+                                {chunk.jurisdiction && (
+                                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                    <Globe size={12} />
+                                    {chunk.jurisdiction.charAt(0).toUpperCase() + chunk.jurisdiction.slice(1)}
+                                    {chunk.state && ` - ${chunk.state}`}
+                                  </span>
+                                )}
                                 {chunk.authorityLevel && (
                                   <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-500/20 text-blue-600">
                                     Authority Level {chunk.authorityLevel}
+                                  </span>
+                                )}
+                                {chunk.conflictResolutionReason && (
+                                  <span className="px-2 py-0.5 rounded text-xs font-medium bg-purple-500/20 text-purple-600 border border-purple-500/30">
+                                    Conflict Resolution: {getConflictResolutionLabel(chunk.conflictResolutionReason)}
                                   </span>
                                 )}
                                 {chunk.sourceUrl && (
