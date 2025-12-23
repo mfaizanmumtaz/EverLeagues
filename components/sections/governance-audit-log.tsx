@@ -36,6 +36,24 @@ import {
 
 const ITEMS_PER_PAGE = 10
 
+// Helper to format full timestamp with date
+const formatLogTimestampFull = (timestamp: string): string => {
+  try {
+    const date = new Date(timestamp)
+    return date.toLocaleString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true,
+    })
+  } catch {
+    return timestamp
+  }
+}
+
 // Action badge colors
 const ACTION_COLORS: Record<string, string> = {
   state_changed: "bg-blue-500/20 text-blue-600 border-blue-500/30",
@@ -366,34 +384,34 @@ export default function GovernanceAuditLog() {
           <table className="w-full">
             <thead>
               <tr className="bg-muted/50 border-b border-border">
-                <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider min-w-[120px]">
                   <div className="flex items-center gap-1.5">
                     <Clock size={14} />
                     When
                   </div>
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider min-w-[180px]">
                   <div className="flex items-center gap-1.5">
                     <User size={14} />
                     Who
                   </div>
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider min-w-[200px]">
                   <div className="flex items-center gap-1.5">
                     <FileText size={14} />
                     Document
                   </div>
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider min-w-[140px]">
                   Action
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider min-w-[130px]">
                   Field Changed
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider min-w-[280px]">
                   Previous → New Value
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider min-w-[220px]">
                   Reason
                 </th>
               </tr>
@@ -490,25 +508,25 @@ function LogRow({ log }: { log: GovernanceLogEntry }) {
         className="hover:bg-muted/30 cursor-pointer transition-colors"
         onClick={() => setExpanded(!expanded)}
       >
-        <td className="px-4 py-3 text-sm">
+        <td className="px-6 py-3 text-sm">
           <div className="flex items-center gap-2">
             <Calendar size={14} className="text-muted-foreground flex-shrink-0" />
-            <span className="text-foreground whitespace-nowrap">
+            <span className="text-foreground whitespace-nowrap" title={formatLogTimestampFull(log.timestamp)}>
               {formatLogTimestamp(log.timestamp)}
             </span>
           </div>
         </td>
-        <td className="px-4 py-3 text-sm">
+        <td className="px-6 py-3 text-sm">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-full bg-accent/20 flex items-center justify-center">
-              <User size={12} className="text-accent" />
+            <div className="w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
+              <User size={12} className="text-green-600" />
             </div>
-            <span className="text-foreground truncate max-w-[150px]" title={log.userId}>
+            <span className="text-foreground truncate max-w-[160px]" title={log.userId}>
               {log.userId}
             </span>
           </div>
         </td>
-        <td className="px-4 py-3 text-sm">
+        <td className="px-6 py-3 text-sm">
           <div className="flex items-center gap-2">
             <FileText size={14} className="text-muted-foreground flex-shrink-0" />
             <span className="text-foreground truncate max-w-[180px]" title={log.documentName}>
@@ -516,82 +534,98 @@ function LogRow({ log }: { log: GovernanceLogEntry }) {
             </span>
           </div>
         </td>
-        <td className="px-4 py-3 text-sm">
+        <td className="px-6 py-3 text-sm">
           <span
-            className={`px-2.5 py-1 rounded-full text-xs font-medium border ${
+            className={`px-2.5 py-1 rounded-full text-xs font-medium border whitespace-nowrap ${
               ACTION_COLORS[log.action] || "bg-gray-500/20 text-gray-600 border-gray-500/30"
             }`}
           >
             {formatAction(log.action)}
           </span>
         </td>
-        <td className="px-4 py-3 text-sm">
-          <code className="px-2 py-0.5 rounded bg-muted text-foreground text-xs font-mono">
+        <td className="px-6 py-3 text-sm">
+          <code className="px-2 py-0.5 rounded bg-muted text-foreground text-xs font-mono whitespace-nowrap">
             {log.fieldChanged}
           </code>
         </td>
-        <td className="px-4 py-3 text-sm">
-          <div className="flex items-center gap-2 max-w-[200px]">
+        <td className="px-6 py-3 text-sm">
+          <div className="flex items-center gap-2 min-w-0">
             {log.previousValue ? (
               <>
-                <span className="text-muted-foreground line-through truncate" title={log.previousValue}>
+                <span 
+                  className="text-muted-foreground line-through truncate flex-shrink-0" 
+                  title={log.previousValue}
+                >
                   {log.previousValue}
                 </span>
                 <ArrowRight size={14} className="text-muted-foreground flex-shrink-0" />
               </>
             ) : (
-              <span className="text-muted-foreground italic">(none)</span>
+              <span className="text-muted-foreground italic flex-shrink-0">(none)</span>
             )}
-            <span className="text-foreground font-medium truncate" title={log.newValue}>
+            <span 
+              className="text-foreground font-medium truncate min-w-0" 
+              title={log.newValue}
+            >
               {log.newValue}
             </span>
           </div>
         </td>
-        <td className="px-4 py-3 text-sm">
-          <span className="text-muted-foreground truncate max-w-[200px] block" title={log.reason}>
+        <td className="px-6 py-3 text-sm">
+          <span 
+            className="text-muted-foreground block min-w-0" 
+            title={log.reason || ""}
+            style={{
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
             {log.reason || "-"}
           </span>
         </td>
       </tr>
       {expanded && (
         <tr className="bg-muted/20">
-          <td colSpan={7} className="px-4 py-4">
-            <div className="grid grid-cols-3 gap-4 text-sm">
+          <td colSpan={7} className="px-6 py-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-6 text-sm">
               <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase mb-1">Log ID</p>
-                <code className="text-xs font-mono text-foreground">{log.id}</code>
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-2">ID</label>
+                <code className="text-xs font-mono text-foreground break-all">{log.id}</code>
               </div>
               <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase mb-1">
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-2">
                   Full Timestamp
-                </p>
-                <code className="text-xs font-mono text-foreground">{log.timestamp}</code>
+                </label>
+                <code className="text-xs font-mono text-foreground">{formatLogTimestampFull(log.timestamp)}</code>
               </div>
               <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase mb-1">
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-2">
                   Document ID
-                </p>
+                </label>
                 <code className="text-xs font-mono text-foreground">{log.documentId}</code>
               </div>
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase mb-1">
+              <div className="col-span-full md:col-span-1">
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-2">
                   Previous Value (Full)
-                </p>
-                <code className="text-xs font-mono text-foreground break-all">
+                </label>
+                <code className="text-xs font-mono text-foreground break-words block">
                   {log.previousValue || "(none)"}
                 </code>
               </div>
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase mb-1">
+              <div className="col-span-full md:col-span-1">
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-2">
                   New Value (Full)
-                </p>
-                <code className="text-xs font-mono text-foreground break-all">{log.newValue}</code>
+                </label>
+                <code className="text-xs font-mono text-foreground break-words block">{log.newValue}</code>
               </div>
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase mb-1">
+              <div className="col-span-full md:col-span-1">
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-2">
                   Reason (Full)
-                </p>
-                <p className="text-foreground">{log.reason || "(no reason provided)"}</p>
+                </label>
+                <p className="text-foreground break-words">{log.reason || "(no reason provided)"}</p>
               </div>
             </div>
           </td>

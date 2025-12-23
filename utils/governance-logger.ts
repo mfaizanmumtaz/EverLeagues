@@ -35,14 +35,11 @@ const generateLogId = (): string => {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 }
 
-// Format timestamp for display
+// Format timestamp for display - Short format (time only) for table
 export const formatLogTimestamp = (timestamp: string): string => {
   try {
     const date = new Date(timestamp)
     return date.toLocaleString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",
